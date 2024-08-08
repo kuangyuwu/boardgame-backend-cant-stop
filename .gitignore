@@ -22,6 +22,8 @@ go.work
 go.work.sum
 
 *.js
-player.go
 generate_cert*
 *.pem
+server.crt
+server.csr
+server.key
