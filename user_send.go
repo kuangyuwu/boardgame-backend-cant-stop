@@ -57,30 +57,13 @@ func (u *User) sendPrepUpdate() {
 	u.send <- data
 }
 
-func (u User) sendRoll() {
-	data := Data{
-		Type: "roll",
-		Body: nil,
-	}
-	u.send <- data
-}
+func (r Room) broadcastPrepUpdate() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-func (u User) sendResult(points []int, options []Option, hasOptions bool) {
-	data := Data{
-		Type: "result",
-		Body: map[string]interface{}{
-			"points":     points,
-			"options":    options,
-			"hasOptions": hasOptions,
-		},
+	for _, u := range r.users {
+		if u.status == statusInPrep {
+			u.sendPrepUpdate()
+		}
 	}
-	u.send <- data
-}
-
-func (u User) sendContinue() {
-	data := Data{
-		Type: "continue",
-		Body: nil,
-	}
-	u.send <- data
 }

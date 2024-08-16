@@ -10,18 +10,15 @@ import (
 type Status int
 
 const (
-	statusFree             Status = 0
-	statusInPrep           Status = 1
-	statusInGameNotPlaying Status = 2
-	statusInGameRolling    Status = 3
-	statusInGameChoosing   Status = 4
+	statusFree   Status = 0
+	statusInPrep Status = 1
+	statusInGame Status = 2
 )
 
 type User struct {
 	mu       *sync.RWMutex
 	conn     *websocket.Conn
 	room     *Room
-	player   *Player
 	isReady  bool
 	status   Status
 	username string

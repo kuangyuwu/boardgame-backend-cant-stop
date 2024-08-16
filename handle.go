@@ -3,16 +3,12 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"math/rand"
-	"time"
 
 	"github.com/gorilla/websocket"
+	cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
 )
 
-type Data struct {
-	Type string                 `json:"type"`
-	Body map[string]interface{} `json:"body"`
-}
+type Data = cantstop.Data
 
 func (cfg *Config) handle(u *User) {
 	defer u.conn.Close()
@@ -34,7 +30,8 @@ func (cfg *Config) handle(u *User) {
 			continue
 		}
 
-		log.Printf("The server received the following data: %v", data)
+		// log.Printf("The server received the following data: %v", data)
+		data.Username = u.username
 
 		switch data.Type {
 		case "ready":
@@ -52,17 +49,13 @@ func (cfg *Config) handle(u *User) {
 		case "start":
 			u.handleStart()
 		case "roll":
-			u.handleRoll()
-		case "action":
-			u.handleAction(data.Body)
-		case "continue":
-			u.handleContinue()
-		case "stop":
-			u.handleStop()
-		case "fail":
-			u.handleFail()
-		case "endGame":
-			u.handleEndGame()
+			u.room.forwardToGame(data)
+		case "act":
+			u.room.forwardToGame(data)
+		case "confirm":
+			u.room.forwardToGame(data)
+		case "exit":
+			u.room.forwardToGame(data)
 		default:
 			log.Print("unsupported type")
 		}
@@ -195,172 +188,18 @@ func (u *User) handleStart() {
 		user.mu.RUnlock()
 	}
 
-	log.Print("Starting game")
+	// log.Print("Starting game")
 
 	u.room.startGame()
-	u.room.broadcastStart()
-	u.room.broadcastLog("Game starts!")
-	go u.room.nextTurn()
 }
 
-type Option struct {
-	Grouping [][]int `json:"grouping"`
-	Actions  [][]int `json:"actions"`
-}
+// func (u *User) hasCorrectStatus(expected Status) bool {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
 
-func (u *User) handleRoll() {
-	if !u.hasStatus(statusInGameRolling) {
-		return
-	}
-	u.mu.Lock()
-	u.status = statusInGameChoosing
-	u.mu.Unlock()
-	points := rollDices(u.room.game.ruleset.dices)
-	groupings := pointsToGroupings(points, u.room.game.ruleset.partitions)
-	options := []Option{}
-	hasOptions := false
-	for _, grouping := range groupings {
-		actions := u.groupingToActions(grouping)
-		if len(actions) > 0 {
-			hasOptions = true
-		}
-		options = append(options, Option{
-			Grouping: grouping,
-			Actions:  actions,
-		})
-	}
-	u.sendResult(points, options, hasOptions)
-}
-
-func rollDices(dices []int) []int {
-	result := make([]int, 0, len(dices))
-	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for _, d := range dices {
-		result = append(result, rd.Intn(d)+1)
-	}
-	return result
-}
-
-func pointsToGroupings(points []int, partitions [][][]int) [][][]int {
-	groupings := [][][]int{}
-	for _, partition := range partitions {
-		grouping := [][]int{}
-		for _, part := range partition {
-			group := []int{}
-			for _, i := range part {
-				group = append(group, points[i])
-			}
-			grouping = append(grouping, group)
-		}
-		groupings = append(groupings, grouping)
-	}
-	return groupings
-}
-
-func (u *User) groupingToActions(grouping [][]int) [][]int {
-	actions := [][]int{}
-	g0 := sum(grouping[0])
-	g1 := sum(grouping[1])
-	if u.room.isValidAction(u, []int{g0, g1}) {
-		return [][]int{{g0, g1}}
-	}
-	if u.room.isValidAction(u, []int{g0}) {
-		actions = append(actions, []int{g0})
-	}
-	if u.room.isValidAction(u, []int{g1}) {
-		actions = append(actions, []int{g1})
-	}
-	return actions
-}
-
-func sum(slice []int) int {
-	result := 0
-	for _, x := range slice {
-		result += x
-	}
-	return result
-}
-
-func (u *User) handleAction(body map[string]interface{}) {
-	if !u.hasCorrectStatus(statusInGameChoosing) {
-		return
-	}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	for _, path := range body["action"].([]interface{}) {
-		u.player.takeAction(int(path.(float64)))
-	}
-	u.room.broadcastGameboard()
-	u.sendContinue()
-}
-
-func (u *User) handleContinue() {
-	if !u.hasCorrectStatus(statusInGameChoosing) {
-		return
-	}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.status = statusInGameRolling
-
-	go u.room.nextMove(false)
-}
-
-func (u *User) handleStop() {
-	if !u.hasCorrectStatus(statusInGameChoosing) {
-		return
-	}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.player.updateState()
-	u.player.resetTemp()
-	u.player.addMoves(u.room.game.moveCount)
-	u.room.broadcastGameboard()
-	u.status = statusInGameNotPlaying
-	if u.player.isWinner(u.room.game.ruleset.goal) {
-		u.room.broadcastWinner(u.username)
-		return
-	}
-	u.room.broadcastPlayer(false)
-	go u.room.nextPlayer()
-}
-
-func (u *User) handleFail() {
-	if !u.hasCorrectStatus(statusInGameChoosing) {
-		return
-	}
-
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.player.resetTemp()
-	u.player.addMoves(u.room.game.moveCount)
-	u.room.broadcastGameboard()
-	u.status = statusInGameNotPlaying
-	u.room.broadcastPlayer(false)
-	go u.room.nextPlayer()
-}
-
-func (u *User) hasCorrectStatus(expected Status) bool {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	if u.status != expected {
-		log.Printf("error: expect status %d, get status %d", expected, u.status)
-		return false
-	}
-	return true
-}
-
-func (u *User) handleEndGame() {
-	u.mu.Lock()
-	u.status = statusInPrep
-	u.mu.Unlock()
-
-	u.room.broadcastPrepUpdate()
-}
+// 	if u.status != expected {
+// 		log.Printf("error: expect status %d, get status %d", expected, u.status)
+// 		return false
+// 	}
+// 	return true
+// }

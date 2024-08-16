@@ -27,3 +27,6 @@ generate_cert*
 server.crt
 server.csr
 server.key
+
+client.go
+hub.go
