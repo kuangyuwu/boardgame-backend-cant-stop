@@ -8,48 +8,41 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func (cfg *Config) initializeServer(addr *string) {
+func initializeServer(addr *string, l *Lobby) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/healthz", handlerReadiness)
-	mux.HandleFunc("/v1/user/{username}", cfg.handlerUser)
+	mux.HandleFunc("/", l.handlerDefault)
 
-	cfg.server = &http.Server{
+	return &http.Server{
 		Addr:    *addr,
 		Handler: mux,
 	}
 }
 
-func (cfg *Config) handlerUser(w http.ResponseWriter, r *http.Request) {
-
-	username := r.PathValue("username")
-	if len(username) > MaxLenUsername {
-		log.Print("The username is too long")
-		respondWithError(w, http.StatusBadRequest, "The username is too long")
-		return
-	}
-
+func (l *Lobby) handlerDefault(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
-			return origin == "http://127.0.0.1:5500"
+			return origin == "http://cant-stop.kuangyuwu.com"
 		},
 	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade request failed: %s\n", err)
 		return
 	}
 
-	user, err := cfg.createUser(username, conn)
+	u, err := l.createUser(conn)
 	if err != nil {
 		log.Printf("Error creating user: %s\n", err)
+		conn.Close()
 		return
 	}
 
-	go cfg.handle(user)
-	go user.sendMessage()
-
-	log.Print("User created")
+	go u.handleMessage()
+	go u.sendMessage()
+	log.Print("a user connected")
 }
 
 func handlerReadiness(w http.ResponseWriter, r *http.Request) {
@@ -71,14 +64,4 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
-}
-
-func respondWithError(w http.ResponseWriter, code int, msg string) {
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
-	payload := errorResponse{
-		Error: msg,
-	}
-	respondWithJSON(w, code, payload)
 }

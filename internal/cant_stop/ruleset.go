@@ -15,7 +15,25 @@ var ErrRuleSetNotFound = errors.New("rule set not found")
 
 func getRuleSet(i int) (RuleSet, error) {
 	switch i {
-	case 0:
+	case 2:
+		return RuleSet{
+			numTempPaths:    2,
+			goal:            2,
+			dices:           []int8{6, 6},
+			pathLengths:     []int8{-1, 6, 6, 6, 6, 6, 6},
+			partitions:      [][][]int8{{{0}, {1}}},
+			actionGenerator: actionGenerator2Groups,
+		}, nil
+	case 3:
+		return RuleSet{
+			numTempPaths:    3,
+			goal:            3,
+			dices:           []int8{6, 6, 6},
+			pathLengths:     []int8{-1, 7, 7, 9, 11, 13, 15, 13, 11, 9, 7, 5, 3},
+			partitions:      [][][]int8{{{0}, {1, 2}}, {{1}, {0, 2}}, {{2}, {0, 1}}},
+			actionGenerator: actionGenerator2Groups,
+		}, nil
+	case 4:
 		return RuleSet{
 			numTempPaths:    3,
 			goal:            3,
@@ -24,14 +42,15 @@ func getRuleSet(i int) (RuleSet, error) {
 			partitions:      [][][]int8{{{0, 1}, {2, 3}}, {{0, 2}, {1, 3}}, {{0, 3}, {1, 2}}},
 			actionGenerator: actionGenerator2Groups,
 		}, nil
-	// case 1:
-	// 	return RuleSet{
-	// 		numTempPaths: 2,
-	// 		goal:         2,
-	// 		dices:        []int{6, 6},
-	// 		pathLengths:  []int{-1, 6, 6, 6, 6, 6, 6},
-	// 		partitions:   [][][]int{{{0}, {1}}},
-	// 	}, nil
+	case 5:
+		return RuleSet{
+			numTempPaths:    3,
+			goal:            4,
+			dices:           []int8{6, 6, 6, 6, 6},
+			pathLengths:     []int8{-1, -1, 5, 7, 9, 11, 13, 15, 15, 14, 13, 11, 9, 7, 6, 5, 4, 3, 2},
+			partitions:      [][][]int8{{{0, 1}, {2, 3, 4}}, {{0, 2}, {1, 3, 4}}, {{0, 3}, {1, 2, 4}}, {{0, 4}, {1, 2, 3}}, {{1, 2}, {0, 3, 4}}, {{1, 3}, {0, 2, 4}}, {{1, 4}, {0, 2, 3}}, {{2, 3}, {0, 1, 4}}, {{2, 4}, {0, 1, 3}}, {{3, 4}, {0, 1, 2}}},
+			actionGenerator: actionGenerator2Groups,
+		}, nil
 	default:
 		return RuleSet{}, ErrRuleSetNotFound
 	}

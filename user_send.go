@@ -1,22 +1,8 @@
 package main
 
-import (
-	"encoding/json"
-	"log"
+import cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
 
-	"github.com/gorilla/websocket"
-)
-
-func (u *User) sendMessage() {
-	for data := range u.send {
-		msg, err := json.Marshal(data)
-		if err != nil {
-			log.Printf("Error marshalling JSON %s", err)
-			return
-		}
-		u.conn.WriteMessage(websocket.TextMessage, msg)
-	}
-}
+type Data = cantstop.Data
 
 func (u User) sendError(errMsg string) {
 	data := Data{
@@ -25,7 +11,15 @@ func (u User) sendError(errMsg string) {
 			"error": errMsg,
 		},
 	}
-	u.send <- data
+	u.toUser <- data
+}
+
+func (u *User) sendUsername() {
+	data := Data{
+		Type: "username",
+		Body: nil,
+	}
+	u.toUser <- data
 }
 
 func (u User) sendPrep() {
@@ -33,37 +27,5 @@ func (u User) sendPrep() {
 		Type: "prep",
 		Body: nil,
 	}
-	u.send <- data
-}
-
-func (u *User) sendPrepUpdate() {
-	data := Data{
-		Type: "prepUpdate",
-		Body: map[string]interface{}{
-			"roomId":    u.room.id,
-			"isHosting": false,
-			"isReady":   u.isReady,
-			"usernames": u.room.usernames(),
-		},
-	}
-	if u.isHost() {
-		data.Body["isHosting"] = true
-		for _, user := range u.room.users {
-			if !user.isReady {
-				data.Body["isReady"] = false
-			}
-		}
-	}
-	u.send <- data
-}
-
-func (r Room) broadcastPrepUpdate() {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, u := range r.users {
-		if u.status == statusInPrep {
-			u.sendPrepUpdate()
-		}
-	}
+	u.toUser <- data
 }

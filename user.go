@@ -1,131 +1,95 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
-	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
-type Status int
-
-const (
-	statusFree   Status = 0
-	statusInPrep Status = 1
-	statusInGame Status = 2
-)
-
 type User struct {
-	mu       *sync.RWMutex
 	conn     *websocket.Conn
+	lobby    *Lobby
 	room     *Room
-	isReady  bool
-	status   Status
 	username string
-	send     chan Data
+	toUser   chan Data
 }
 
-func (cfg *Config) createUser(username string, conn *websocket.Conn) (*User, error) {
-
-	if cfg.hasTooManyUsers() {
-		return nil, ErrTooManyUsers
+func (u *User) disconnect() {
+	if u.lobby != nil {
+		u.lobby.deleteUser(u)
 	}
-	if cfg.findUser(username) != nil {
-		return nil, ErrUsernameUsed
-	}
-
-	newUser := User{
-		conn:     conn,
-		mu:       &sync.RWMutex{},
-		room:     nil,
-		isReady:  false,
-		status:   0,
-		username: username,
-		send:     make(chan Data),
-	}
-	cfg.mu.Lock()
-	defer cfg.mu.Unlock()
-	cfg.users[&newUser] = true
-
-	return &newUser, nil
-}
-
-func (cfg *Config) deleteUser(u *User) error {
-	if _, ok := cfg.users[u]; !ok {
-		return ErrUserNotExist
-	}
-
-	log.Printf("deleting user %s", u.username)
-
 	if u.room != nil {
-		if u.isHost() {
-			cfg.deleteRoom(u.room)
-		}
-		u.leaveRoom()
-	}
-
-	cfg.mu.Lock()
-	defer cfg.mu.Unlock()
-
-	delete(cfg.users, u)
-
-	return nil
-}
-
-func (cfg *Config) findUser(username string) *User {
-	cfg.mu.RLock()
-	defer cfg.mu.RUnlock()
-
-	for u := range cfg.users {
-		if u.username == username {
-			return u
+		u.room.removePlayer(u.username)
+		if len(u.room.players) == 0 {
+			u.lobby.deleteRoom(u.room)
 		}
 	}
-	return nil
+	u.conn.Close()
+	log.Printf("User %s disconnected", u.username)
 }
 
-func (cfg *Config) hasTooManyUsers() bool {
-	cfg.mu.RLock()
-	defer cfg.mu.RUnlock()
+func (u *User) handleMessage() {
+	defer u.disconnect()
+	for {
+		_, msg, err := u.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error reading message: %s\n", err)
+			}
+			return
+		}
 
-	result := len(cfg.users) >= MaxNumUsersTotal
-	return result
-}
-
-func (u *User) hasStatus(status Status) bool {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	result := u.status == status
-	return result
-}
-
-func (u *User) isHost() bool {
-	u.mu.RLock()
-	u.room.mu.RLock()
-	defer u.mu.RUnlock()
-	defer u.room.mu.RUnlock()
-
-	result := u == u.room.host
-	return result
-}
-
-func (u *User) leaveRoom() {
-	u.mu.Lock()
-	u.room.mu.Lock()
-	defer u.mu.Unlock()
-	defer u.room.mu.Unlock()
-
-	newUsers := []*User{}
-	for _, user := range u.room.users {
-		if user == u {
+		data := Data{}
+		err = json.Unmarshal(msg, &data)
+		if err != nil {
+			log.Printf("error unmarshaling JSON: %s", string(msg))
 			continue
 		}
-		newUsers = append(newUsers, user)
-	}
-	u.room.users = newUsers
 
-	u.room = nil
-	u.isReady = false
-	u.status = statusFree
+		log.Printf("The server received the following data from %s: %v", u.username, data)
+		data.Username = u.username
+
+		switch data.Type {
+		case "ready":
+			u.handleReady()
+		case "username":
+			u.handleUsername(data.Body)
+		case "prepNew":
+			u.handlePrepNew()
+		case "prepJoin":
+			u.handlePrepJoin(data.Body)
+		case "prepLeave":
+			u.handlePrepLeave()
+		case "ruleset":
+			u.handleRuleset(data.Body)
+		case "prepReady":
+			u.handlePrepReady()
+		case "prepUnready":
+			u.handlePrepUnready()
+		case "start":
+			u.handleStart()
+		case "roll":
+			u.room.forwardToGame(data)
+		case "act":
+			u.room.forwardToGame(data)
+		case "confirm":
+			u.room.forwardToGame(data)
+		case "exit":
+			u.room.forwardToGame(data)
+		default:
+			log.Print("unsupported type")
+		}
+	}
+}
+
+func (u *User) sendMessage() {
+	for data := range u.toUser {
+		msg, err := json.Marshal(data)
+		if err != nil {
+			log.Printf("Error marshalling JSON %s", err)
+			return
+		}
+		u.conn.WriteMessage(websocket.TextMessage, msg)
+	}
 }
