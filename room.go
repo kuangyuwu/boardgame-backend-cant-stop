@@ -150,19 +150,3 @@ func (r *Room) exitGame(username string) {
 	r.mu.Unlock()
 	r.broadcastPrepUpdate()
 }
-
-// func (cfg *Config) hasTooManyRooms() bool {
-// 	cfg.mu.RLock()
-// 	defer cfg.mu.RUnlock()
-
-// 	result := len(cfg.rooms) >= MaxNumRooms
-// 	return result
-// }
-
-// func (r Room) hasTooManyUsers() bool {
-// 	r.mu.RLock()
-// 	defer r.mu.RUnlock()
-
-// 	result := len(r.users) >= MaxNumUsersPerRoom
-// 	return result
-// }
