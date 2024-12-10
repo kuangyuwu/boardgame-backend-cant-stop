@@ -1,6 +1,6 @@
 # Use a lightweight debian os
 # as the base image
-FROM debian:stable-slim
+FROM  debian:stable-slim
 
 WORKDIR /app
 

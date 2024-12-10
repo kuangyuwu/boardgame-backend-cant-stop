@@ -21,12 +21,11 @@
 go.work
 go.work.sum
 
-*.js
-generate_cert*
-*.pem
 server.crt
 server.csr
 server.key
 
 client.go
 hub.go
+game_logic
+boardgame-backend-cant-stop
