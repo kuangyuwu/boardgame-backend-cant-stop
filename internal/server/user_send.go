@@ -1,4 +1,4 @@
-package main
+package server
 
 import cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
 

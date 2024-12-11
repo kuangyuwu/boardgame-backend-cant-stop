@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"errors"
@@ -33,7 +33,7 @@ type Lobby struct {
 	users []*User
 }
 
-func initializeLobby() *Lobby {
+func InitializeLobby() *Lobby {
 	return &Lobby{
 		mu:    &sync.Mutex{},
 		rooms: make([]*Room, 0, MaxNumRooms),

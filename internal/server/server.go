@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func initializeServer(addr *string, l *Lobby) *http.Server {
+func InitializeServer(addr *string, l *Lobby) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/healthz", handlerReadiness)
 	mux.HandleFunc("/", l.handlerDefault)

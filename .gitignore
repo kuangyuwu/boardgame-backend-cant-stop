@@ -25,7 +25,8 @@ server.crt
 server.csr
 server.key
 
-client.go
-hub.go
 game_logic
 boardgame-backend-cant-stop
+
+.DS_Store
+.vscode
