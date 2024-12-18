@@ -1,4 +1,4 @@
-package server
+package lobby
 
 import (
 	"errors"
@@ -41,7 +41,7 @@ func InitializeLobby() *Lobby {
 	}
 }
 
-func (l *Lobby) createUser(conn *websocket.Conn) (*User, error) {
+func (l *Lobby) CreateUser(conn *websocket.Conn) (*User, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -57,6 +57,9 @@ func (l *Lobby) createUser(conn *websocket.Conn) (*User, error) {
 		toUser:   make(chan Data),
 	}
 	l.users = append(l.users, u)
+
+	go u.handleMessage()
+	go u.sendMessage()
 	return u, nil
 }
 

@@ -11,13 +11,20 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/lobby"
 )
 
-func NewServer(addr *string, l *Lobby) (*http.Server, <-chan bool) {
+type Config struct {
+	l *lobby.Lobby
+}
+
+func NewServer(addr *string, l *lobby.Lobby) (*http.Server, <-chan bool) {
+	cfg := &Config{lobby.InitializeLobby()}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handlerHealthz)
 	mux.HandleFunc("/healthz", handlerHealthz)
-	mux.HandleFunc("/websocket", l.handlerWebsocket)
+	mux.HandleFunc("/websocket", cfg.handlerWebsocket)
 
 	srv := &http.Server{
 		Addr:         *addr,
@@ -32,7 +39,7 @@ func NewServer(addr *string, l *Lobby) (*http.Server, <-chan bool) {
 	return srv, done
 }
 
-func (l *Lobby) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
+func (cfg *Config) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -47,15 +54,13 @@ func (l *Lobby) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := l.createUser(conn)
+	_, err = cfg.l.CreateUser(conn)
 	if err != nil {
 		clog.Error(fmt.Sprintf("error creating user: %s\n", err))
 		conn.Close()
 		return
 	}
 
-	go u.handleMessage()
-	go u.sendMessage()
 	clog.Info("a user connected")
 }
 
