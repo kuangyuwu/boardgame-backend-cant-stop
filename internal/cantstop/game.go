@@ -31,6 +31,9 @@ var (
 	ErrInvalidAdvancesValue = errors.New("the value of advances is invalid")
 	ErrAdvancesNotMatching  = errors.New("the advances don't match the dice")
 	ErrInvalidAdvances      = errors.New("the advances are invalid")
+	ErrMustAdvance          = errors.New("must advance if possible")
+	ErrCantContinue         = errors.New("can't continue with no possible advances")
+	ErrMustUseBothGroups    = errors.New("must use both groups of dice if possible")
 )
 
 type Game struct {
@@ -155,30 +158,60 @@ func (g *Game) validateMove(m Move) error {
 			return ErrInvalidAdvancesValue
 		}
 	}
-	if !advancesMatchDice(m) {
-		return ErrAdvancesNotMatching
+	a1, a2 := m.Advances[0], m.Advances[1]
+	if a1 == 0 && a2 == 0 {
+		for i := range 6 {
+			options := generateOptions(m.Dice, g.state)
+			if options[i>>1][i&1] != [2]uint8{0, 0} {
+				return ErrMustAdvance
+			}
+			if m.Continues {
+				return ErrCantContinue
+			}
+		}
+		return nil
 	}
-	if !g.state.isValidAdvances(m.Advances) {
+	if a1 == 0 || a2 == 0 {
+		a1, a2 = a1+a2, 0
+		groupings := groupDice(m.Dice)
+		for i, gr := range groupings {
+			if a1 == gr[0] {
+				break
+			} else if a1 == gr[1] {
+				break
+			}
+			if i == 2 {
+				return ErrAdvancesNotMatching
+			}
+		}
+		if !g.state.isValidAdvances([2]uint8{a1, 0}) {
+			return ErrInvalidAdvances
+		}
+		sum := m.Dice[0] + m.Dice[1] + m.Dice[2] + m.Dice[3]
+		if g.state.isValidAdvances([2]uint8{a1, sum - a1}) {
+			return ErrMustUseBothGroups
+		}
+		return nil
+	}
+	groupings := groupDice(m.Dice)
+	for i, gr := range groupings {
+		if a1 == gr[0] {
+			if a2 != gr[1] {
+				return ErrAdvancesNotMatching
+			}
+		} else if a1 == gr[1] {
+			if a2 != gr[0] {
+				return ErrAdvancesNotMatching
+			}
+		}
+		if i == 2 {
+			return ErrAdvancesNotMatching
+		}
+	}
+	if !g.state.isValidAdvances([2]uint8{a1, a2}) {
 		return ErrInvalidAdvances
 	}
 	return nil
-}
-
-func advancesMatchDice(m Move) bool {
-	a1, a2 := m.Advances[0], m.Advances[1]
-	s := m.Dice[0] + m.Dice[1] + m.Dice[2] + m.Dice[3]
-	s1, s2, s3 := m.Dice[0]+m.Dice[1], m.Dice[0]+m.Dice[2], m.Dice[0]+m.Dice[3]
-	if a1 == 0 {
-		a1, a2 = a2, 0
-	}
-
-	if a1 == 0 {
-		return true
-	}
-	if a2 == 0 {
-		return a1 == s1 || a1 == s-s1 || a1 == s2 || a1 == s-s2 || a1 == s3 || a1 == s-s3
-	}
-	return a1 == s1 || a2 == s1 || a1 == s2 || a2 == s2 || a1 == s3 || a2 == s3
 }
 
 func (g *Game) IsEnded() bool {

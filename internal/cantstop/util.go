@@ -15,17 +15,24 @@ func RollDice() [4]uint8 {
 }
 
 func GenerateOptions(dice [4]uint8, s State) ([3][2][2]uint8, error) {
-
 	if !isValidDiceValue(dice) {
 		return [3][2][2]uint8{}, ErrInvalidDiceValue
 	}
 
-	groupings := [3][2]uint8{
-		{dice[0] + dice[1], dice[2] + dice[3]},
-		{dice[0] + dice[2], dice[1] + dice[3]},
-		{dice[0] + dice[3], dice[1] + dice[2]},
-	}
+	return generateOptions(dice, s), nil
+}
 
+func isValidDiceValue(dice [4]uint8) bool {
+	for i := range 4 {
+		if dice[i] == 0 || dice[i] > diceType[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func generateOptions(dice [4]uint8, s State) [3][2][2]uint8 {
+	groupings := groupDice(dice)
 	options := [3][2][2]uint8{}
 	for i, gr := range groupings {
 		a1, a2 := gr[0], gr[1]
@@ -42,15 +49,13 @@ func GenerateOptions(dice [4]uint8, s State) ([3][2][2]uint8, error) {
 		}
 		options[i] = op
 	}
-
-	return options, nil
+	return options
 }
 
-func isValidDiceValue(dice [4]uint8) bool {
-	for i := range 4 {
-		if dice[i] == 0 || dice[i] > diceType[i] {
-			return false
-		}
+func groupDice(dice [4]uint8) [3][2]uint8 {
+	return [3][2]uint8{
+		{dice[0] + dice[1], dice[2] + dice[3]},
+		{dice[0] + dice[2], dice[1] + dice[3]},
+		{dice[0] + dice[3], dice[1] + dice[2]},
 	}
-	return true
 }
