@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
 const (
 	MaxLenUsername     = 20
 	MaxNumRooms        = 20
-	MaxNumUsersTotal   = 10
+	maxNumUser         = 10
 	MaxNumUsersPerRoom = 5
 )
 
@@ -29,24 +30,24 @@ var (
 
 type Lobby struct {
 	mu    *sync.Mutex
-	rooms []*Room
+	rooms []*room.Room
 	users []*User
 }
 
-func InitializeLobby() *Lobby {
+func New() *Lobby {
 	return &Lobby{
 		mu:    &sync.Mutex{},
-		rooms: make([]*Room, 0, MaxNumRooms),
-		users: make([]*User, 0, MaxNumUsersTotal),
+		rooms: make([]*room.Room, 0, MaxNumRooms),
+		users: make([]*User, 0, maxNumUser),
 	}
 }
 
-func (l *Lobby) CreateUser(conn *websocket.Conn) (*User, error) {
+func (l *Lobby) Connect(conn *websocket.Conn) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if len(l.users) >= MaxNumUsersTotal {
-		return nil, ErrTooManyUsers
+	if len(l.users) >= maxNumUser {
+		return ErrTooManyUsers
 	}
 
 	u := &User{
@@ -60,7 +61,8 @@ func (l *Lobby) CreateUser(conn *websocket.Conn) (*User, error) {
 
 	go u.handleMessage()
 	go u.sendMessage()
-	return u, nil
+
+	return nil
 }
 
 func (l *Lobby) findUserByUsername(username string) *User {
@@ -91,7 +93,7 @@ func (l *Lobby) deleteUser(u *User) {
 	l.mu.Unlock()
 }
 
-func (l *Lobby) newRoom() (*Room, error) {
+func (l *Lobby) newRoom() (*room.Room, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -100,18 +102,11 @@ func (l *Lobby) newRoom() (*Room, error) {
 	}
 
 	id := randId()
-	for slices.IndexFunc(l.rooms, func(r *Room) bool { return r.id == id }) != -1 {
+	for slices.IndexFunc(l.rooms, func(r *room.Room) bool { return r.Id == id }) != -1 {
 		id = randId()
 	}
 
-	r := &Room{
-		mu:           &sync.RWMutex{},
-		id:           id,
-		players:      make([]RoomPlayer, 0, MaxNumUsersPerRoom),
-		toGame:       nil,
-		fromGame:     nil,
-		indexRuleset: 0,
-	}
+	r := room.New(id)
 	l.rooms = append(l.rooms, r)
 
 	return r, nil
@@ -129,19 +124,19 @@ func randId() string {
 	return string(id)
 }
 
-func (l *Lobby) findRoomById(roomId string) *Room {
+func (l *Lobby) findRoomById(roomId string) *room.Room {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	for _, r := range l.rooms {
-		if r.id == roomId {
+		if r.Id == roomId {
 			return r
 		}
 	}
 	return nil
 }
 
-func (l *Lobby) deleteRoom(r *Room) {
+func (l *Lobby) deleteRoom(r *room.Room) {
 	if r == nil {
 		log.Printf("deleteRoom: received nil Room")
 		return
@@ -156,5 +151,5 @@ func (l *Lobby) deleteRoom(r *Room) {
 	l.rooms = slices.Delete(l.rooms, i, i+1)
 	l.mu.Unlock()
 
-	log.Printf("deleted room %s", r.id)
+	log.Printf("deleted room %s", r.Id)
 }

@@ -20,8 +20,8 @@ func (u *User) handleUsername(body map[string]interface{}) {
 
 func (u *User) handlePrepNew() {
 	if u.room != nil {
-		log.Printf("handlePrepNew: %s is already in room %s", u.username, u.room.id)
-		u.room.broadcastPrepUpdate()
+		log.Printf("handlePrepNew: %s is already in room %s", u.username, u.room.Id)
+		u.room.BroadcastPrepUpdate()
 		return
 	}
 
@@ -34,13 +34,13 @@ func (u *User) handlePrepNew() {
 	}
 
 	u.room = r
-	r.addPlayer(u)
+	r.AddPlayer(u.username, u.toUser)
 }
 
 func (u *User) handlePrepJoin(body map[string]interface{}) {
 	if u.room != nil {
-		log.Printf("handlePrepJoin: %s is already in room %s", u.username, u.room.id)
-		u.room.broadcastPrepUpdate()
+		log.Printf("handlePrepJoin: %s is already in room %s", u.username, u.room.Id)
+		u.room.BroadcastPrepUpdate()
 		return
 	}
 
@@ -60,7 +60,7 @@ func (u *User) handlePrepJoin(body map[string]interface{}) {
 		return
 	}
 
-	err := r.addPlayer(u)
+	err := r.AddPlayer(u.username, u.toUser)
 	if err != nil {
 		log.Printf("handlePrepJoin: error adding user to the room: %s", err)
 		u.sendError("error joining the room")
@@ -76,7 +76,7 @@ func (u *User) handlePrepLeave() {
 		u.sendPrep()
 		return
 	}
-	u.room.removePlayer(u.username)
+	u.room.RemovePlayer(u.username)
 	u.room = nil
 	u.sendPrep()
 }
@@ -88,7 +88,7 @@ func (u *User) handleRuleset(body map[string]interface{}) {
 		return
 	}
 	i := int(body["ruleset"].(float64))
-	u.room.setIndexRuleset(i)
+	u.room.SetIndexRuleset(i)
 }
 
 func (u *User) handlePrepReady() {
@@ -97,7 +97,7 @@ func (u *User) handlePrepReady() {
 		u.sendPrep()
 		return
 	}
-	u.room.setReady(u.username)
+	u.room.SetReady(u.username)
 }
 
 func (u *User) handlePrepUnready() {
@@ -106,7 +106,7 @@ func (u *User) handlePrepUnready() {
 		u.sendPrep()
 		return
 	}
-	u.room.setUnready(u.username)
+	u.room.SetUnready(u.username)
 }
 
 func (u *User) handleStart() {
@@ -115,16 +115,16 @@ func (u *User) handleStart() {
 		u.sendPrep()
 		return
 	}
-	if u.room.indexPlayer(u.username) != 0 {
+	if u.room.IndexPlayer(u.username) != 0 {
 		log.Printf("handlePrepUnready: %s is not the host", u.username)
-		u.room.broadcastPrepUpdate()
+		u.room.BroadcastPrepUpdate()
 		return
 	}
-	if !u.room.isAllReady() {
+	if !u.room.IsAllReady() {
 		log.Printf("handlePrepUnready: not everyone is ready")
-		u.room.broadcastPrepUpdate()
+		u.room.BroadcastPrepUpdate()
 		return
 	}
 
-	u.room.startGame()
+	u.room.StartGame()
 }

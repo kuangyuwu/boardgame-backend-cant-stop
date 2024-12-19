@@ -18,8 +18,8 @@ type Config struct {
 	l *lobby.Lobby
 }
 
-func NewServer(addr *string, l *lobby.Lobby) (*http.Server, <-chan bool) {
-	cfg := &Config{lobby.InitializeLobby()}
+func NewServer(addr *string) (*http.Server, <-chan bool) {
+	cfg := &Config{lobby.New()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handlerHealthz)
@@ -44,19 +44,21 @@ func (cfg *Config) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
-			return origin == "http://127.0.0.1:5500"
+			ok := origin == "http://127.0.0.1:5500"
+			return ok
 		},
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		clog.Error(fmt.Sprintf("webSocket upgrade request failed: %s\n", err))
+		clog.Debug(fmt.Sprintf("request origin: %s", r.Header.Get("Origin")))
 		return
 	}
 
-	_, err = cfg.l.CreateUser(conn)
+	err = cfg.l.Connect(conn)
 	if err != nil {
-		clog.Error(fmt.Sprintf("error creating user: %s\n", err))
+		clog.Error(fmt.Sprintf("error connecting to lobby: %s\n", err))
 		conn.Close()
 		return
 	}

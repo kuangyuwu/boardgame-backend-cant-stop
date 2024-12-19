@@ -5,12 +5,13 @@ import (
 	"log"
 
 	"github.com/gorilla/websocket"
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
 type User struct {
 	conn     *websocket.Conn
 	lobby    *Lobby
-	room     *Room
+	room     *room.Room
 	username string
 	toUser   chan Data
 }
@@ -20,8 +21,8 @@ func (u *User) disconnect() {
 		u.lobby.deleteUser(u)
 	}
 	if u.room != nil {
-		u.room.removePlayer(u.username)
-		if len(u.room.players) == 0 {
+		u.room.RemovePlayer(u.username)
+		if u.room.IsEmpty() {
 			u.lobby.deleteRoom(u.room)
 		}
 	}
@@ -70,13 +71,13 @@ func (u *User) handleMessage() {
 		case "start":
 			u.handleStart()
 		case "roll":
-			u.room.forwardToGame(data)
+			u.room.ForwardToGame(data)
 		case "act":
-			u.room.forwardToGame(data)
+			u.room.ForwardToGame(data)
 		case "confirm":
-			u.room.forwardToGame(data)
+			u.room.ForwardToGame(data)
 		case "exit":
-			u.room.forwardToGame(data)
+			u.room.ForwardToGame(data)
 		default:
 			log.Print("unsupported type")
 		}

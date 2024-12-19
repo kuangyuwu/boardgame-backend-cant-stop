@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
-	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/lobby"
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/server"
 )
 
@@ -15,8 +14,7 @@ var addr = flag.String("addr", ":8080", "http service address")
 func main() {
 	flag.Parse()
 
-	l := lobby.InitializeLobby()
-	srv, done := server.NewServer(addr, l)
+	srv, done := server.NewServer(addr)
 	clog.Info(fmt.Sprintf("starting server on address %s", *addr))
 
 	err := srv.ListenAndServe()

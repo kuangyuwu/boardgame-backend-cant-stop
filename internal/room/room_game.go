@@ -1,4 +1,4 @@
-package lobby
+package room
 
 import (
 	"log"
@@ -6,7 +6,7 @@ import (
 	cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
 )
 
-func (r *Room) startGame() {
+func (r *Room) StartGame() {
 	toGame, fromGame, err := cantstop.StartGameCantStop(r.indexRuleset, r.usernames())
 	if err != nil {
 		log.Printf("error starting game: %s", err)
@@ -28,14 +28,14 @@ func (r *Room) startGame() {
 	go r.forwardToUsers()
 }
 
-func (r Room) forwardToGame(d Data) {
+func (r Room) ForwardToGame(d Data) {
 	r.toGame <- d
 }
 
 func (r Room) forwardToUsers() {
 	for d := range r.fromGame {
 		if d.Type == "exit" {
-			r.exitGame(d.Username)
+			r.ExitGame(d.Username)
 			continue
 		}
 		if d.Type == "terminate" {
