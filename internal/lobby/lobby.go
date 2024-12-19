@@ -58,9 +58,17 @@ func (l *Lobby) Connect(in <-chan []byte, out chan<- []byte, dc <-chan struct{})
 	}
 	l.users = append(l.users, u)
 
-	go u.handleMessage(in)
 	go u.sendMessage()
-	go u.disconnect(dc)
+	go func() {
+		for {
+			select {
+			case msg := <-in:
+				u.handleMessage(msg)
+			case <-dc:
+				u.disconnect()
+			}
+		}
+	}()
 
 	return nil
 }
