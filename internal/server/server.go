@@ -8,22 +8,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
-	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/lobby"
 )
 
-type Config struct {
-	l *lobby.Lobby
-}
-
-func NewServer(addr *string) (*http.Server, <-chan bool) {
-	cfg := &Config{lobby.New()}
-
+func New(addr *string, m WebsocketManager) (*http.Server, <-chan bool) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handlerHealthz)
 	mux.HandleFunc("/healthz", handlerHealthz)
-	mux.HandleFunc("/websocket", cfg.handlerWebsocket)
+	handlerWebsocket := generateHandlerWebsocket(m)
+	mux.HandleFunc("/websocket", handlerWebsocket)
 
 	srv := &http.Server{
 		Addr:         *addr,
@@ -36,33 +29,6 @@ func NewServer(addr *string) (*http.Server, <-chan bool) {
 	go gracefulShutdown(srv, done)
 
 	return srv, done
-}
-
-func (cfg *Config) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-			ok := origin == "http://127.0.0.1:5500"
-			return ok
-		},
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		clog.Errorf("webSocket upgrade request failed: %s\n", err)
-		clog.Debugf("request origin: %s", r.Header.Get("Origin"))
-		return
-	}
-
-	err = cfg.l.Connect(conn)
-	if err != nil {
-		clog.Errorf("error connecting to lobby: %s\n", err)
-		conn.Close()
-		return
-	}
-
-	clog.Info("a user connected")
 }
 
 func handlerHealthz(w http.ResponseWriter, r *http.Request) {

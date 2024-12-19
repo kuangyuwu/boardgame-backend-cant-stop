@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
@@ -42,7 +41,7 @@ func New() *Lobby {
 	}
 }
 
-func (l *Lobby) Connect(conn *websocket.Conn) error {
+func (l *Lobby) Connect(in <-chan []byte, out chan<- []byte, dc <-chan struct{}) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -51,16 +50,17 @@ func (l *Lobby) Connect(conn *websocket.Conn) error {
 	}
 
 	u := &User{
-		conn:     conn,
 		lobby:    l,
 		room:     nil,
 		username: "",
 		toUser:   make(chan Data),
+		out:      out,
 	}
 	l.users = append(l.users, u)
 
-	go u.handleMessage()
+	go u.handleMessage(in)
 	go u.sendMessage()
+	go u.disconnect(dc)
 
 	return nil
 }

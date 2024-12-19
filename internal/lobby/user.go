@@ -4,19 +4,20 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/gorilla/websocket"
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
 type User struct {
-	conn     *websocket.Conn
 	lobby    *Lobby
 	room     *room.Room
 	username string
 	toUser   chan Data
+	out      chan<- []byte
 }
 
-func (u *User) disconnect() {
+func (u *User) disconnect(disconnect <-chan struct{}) {
+	<-disconnect
 	if u.lobby != nil {
 		u.lobby.deleteUser(u)
 	}
@@ -26,23 +27,15 @@ func (u *User) disconnect() {
 			u.lobby.deleteRoom(u.room)
 		}
 	}
-	u.conn.Close()
+	close(u.toUser)
+	close(u.out)
 	log.Printf("User %s disconnected", u.username)
 }
 
-func (u *User) handleMessage() {
-	defer u.disconnect()
-	for {
-		_, msg, err := u.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error reading message: %s\n", err)
-			}
-			return
-		}
-
+func (u *User) handleMessage(in <-chan []byte) {
+	for msg := range in {
 		data := Data{}
-		err = json.Unmarshal(msg, &data)
+		err := json.Unmarshal(msg, &data)
 		if err != nil {
 			log.Printf("error unmarshaling JSON: %s", string(msg))
 			continue
@@ -88,9 +81,9 @@ func (u *User) sendMessage() {
 	for data := range u.toUser {
 		msg, err := json.Marshal(data)
 		if err != nil {
-			log.Printf("Error marshalling JSON %s", err)
+			clog.Errorf("Error marshalling JSON: %v", err)
 			return
 		}
-		u.conn.WriteMessage(websocket.TextMessage, msg)
+		u.out <- msg
 	}
 }

@@ -1,6 +1,8 @@
 package lobby
 
-import cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
+import (
+	cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
+)
 
 type Data = cantstop.Data
 
