@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -51,14 +50,14 @@ func (cfg *Config) handlerWebsocket(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		clog.Error(fmt.Sprintf("webSocket upgrade request failed: %s\n", err))
-		clog.Debug(fmt.Sprintf("request origin: %s", r.Header.Get("Origin")))
+		clog.Errorf("webSocket upgrade request failed: %s\n", err)
+		clog.Debugf("request origin: %s", r.Header.Get("Origin"))
 		return
 	}
 
 	err = cfg.l.Connect(conn)
 	if err != nil {
-		clog.Error(fmt.Sprintf("error connecting to lobby: %s\n", err))
+		clog.Errorf("error connecting to lobby: %s\n", err)
 		conn.Close()
 		return
 	}
@@ -78,7 +77,7 @@ func handlerHealthz(w http.ResponseWriter, r *http.Request) {
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		clog.Error(fmt.Sprintf("error marshalling JSON %v", err))
+		clog.Errorf("error marshalling JSON %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -86,7 +85,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "application/json")
 	if _, err = w.Write(data); err != nil {
-		clog.Error(fmt.Sprintf("failed to write response: %v", err))
+		clog.Errorf("failed to write response: %v", err)
 	}
 }
 
@@ -105,7 +104,7 @@ func gracefulShutdown(apiServer *http.Server, done chan bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := apiServer.Shutdown(ctx); err != nil {
-		clog.Error(fmt.Sprintf("server forced to shutdown with error: %v", err))
+		clog.Errorf("server forced to shutdown with error: %v", err)
 	}
 
 	clog.Info("server exiting")

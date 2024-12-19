@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net/http"
 
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
@@ -15,11 +14,11 @@ func main() {
 	flag.Parse()
 
 	srv, done := server.NewServer(addr)
-	clog.Info(fmt.Sprintf("starting server on address %s", *addr))
+	clog.Infof("starting server on address %s", *addr)
 
 	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		clog.Error(fmt.Sprintf("http server error: %s", err))
+		clog.Errorf("http server error: %s", err)
 		panic("")
 	}
 
