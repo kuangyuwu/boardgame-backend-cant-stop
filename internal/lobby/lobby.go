@@ -7,8 +7,6 @@ import (
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
 const (
@@ -29,14 +27,14 @@ var (
 
 type Lobby struct {
 	mu    *sync.Mutex
-	rooms []*room.Room
+	rooms []*Room
 	users []*User
 }
 
 func New() *Lobby {
 	return &Lobby{
 		mu:    &sync.Mutex{},
-		rooms: make([]*room.Room, 0, MaxNumRooms),
+		rooms: make([]*Room, 0, MaxNumRooms),
 		users: make([]*User, 0, maxNumUser),
 	}
 }
@@ -99,7 +97,7 @@ func (l *Lobby) deleteUser(u *User) {
 	l.mu.Unlock()
 }
 
-func (l *Lobby) newRoom() (*room.Room, error) {
+func (l *Lobby) newRoom() (*Room, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -108,11 +106,11 @@ func (l *Lobby) newRoom() (*room.Room, error) {
 	}
 
 	id := randId()
-	for slices.IndexFunc(l.rooms, func(r *room.Room) bool { return r.Id == id }) != -1 {
+	for slices.IndexFunc(l.rooms, func(r *Room) bool { return r.Id == id }) != -1 {
 		id = randId()
 	}
 
-	r := room.New(id)
+	r := newRoom(id)
 	l.rooms = append(l.rooms, r)
 
 	return r, nil
@@ -130,7 +128,7 @@ func randId() string {
 	return string(id)
 }
 
-func (l *Lobby) findRoomById(roomId string) *room.Room {
+func (l *Lobby) findRoomById(roomId string) *Room {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -142,7 +140,7 @@ func (l *Lobby) findRoomById(roomId string) *room.Room {
 	return nil
 }
 
-func (l *Lobby) deleteRoom(r *room.Room) {
+func (l *Lobby) deleteRoom(r *Room) {
 	if r == nil {
 		log.Printf("deleteRoom: received nil Room")
 		return

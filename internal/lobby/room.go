@@ -1,15 +1,10 @@
-package room
+package lobby
 
 import (
-	"errors"
 	"log"
 	"slices"
 	"sync"
-
-	cantstop "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/cant_stop"
 )
-
-type Data = cantstop.Data
 
 type Room struct {
 	mu           *sync.RWMutex
@@ -27,15 +22,7 @@ type RoomPlayer struct {
 	sendData func(data any)
 }
 
-const (
-	MaxNumUsersPerRoom = 5
-)
-
-var (
-	ErrTooManyUsersInRoom = errors.New("too many users in the room")
-)
-
-func New(id string) *Room {
+func newRoom(id string) *Room {
 	return &Room{
 		mu:           &sync.RWMutex{},
 		Id:           id,

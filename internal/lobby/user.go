@@ -5,12 +5,11 @@ import (
 	"log"
 
 	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
-	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/room"
 )
 
 type User struct {
 	lobby    *Lobby
-	room     *room.Room
+	room     *Room
 	username string
 	out      chan<- []byte
 }
