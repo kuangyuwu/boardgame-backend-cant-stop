@@ -22,9 +22,9 @@ type Room struct {
 
 type RoomPlayer struct {
 	username string
-	toUser   chan Data
 	isReady  bool
 	isInGame bool
+	sendData func(data any)
 }
 
 const (
@@ -46,7 +46,7 @@ func New(id string) *Room {
 	}
 }
 
-func (r *Room) AddPlayer(username string, toUser chan Data) error {
+func (r *Room) AddPlayer(username string, sendData func(any)) error {
 	if len(r.players) >= MaxNumUsersPerRoom {
 		return ErrTooManyUsersInRoom
 	}
@@ -54,9 +54,9 @@ func (r *Room) AddPlayer(username string, toUser chan Data) error {
 	r.mu.Lock()
 	r.players = append(r.players, RoomPlayer{
 		username: username,
-		toUser:   toUser,
 		isReady:  false,
 		isInGame: false,
+		sendData: sendData,
 	})
 	r.mu.Unlock()
 
@@ -128,7 +128,7 @@ func (r Room) BroadcastPrepUpdate() {
 			data.Body["isHosting"] = true
 			data.Body["isReady"] = r.IsAllReady()
 		}
-		p.toUser <- data
+		p.sendData(data)
 	}
 }
 

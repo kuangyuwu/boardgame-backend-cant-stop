@@ -13,7 +13,7 @@ func (u User) sendError(errMsg string) {
 			"error": errMsg,
 		},
 	}
-	u.toUser <- data
+	u.send(data)
 }
 
 func (u *User) sendUsername() {
@@ -21,7 +21,7 @@ func (u *User) sendUsername() {
 		Type: "username",
 		Body: nil,
 	}
-	u.toUser <- data
+	u.send(data)
 }
 
 func (u User) sendPrep() {
@@ -29,5 +29,5 @@ func (u User) sendPrep() {
 		Type: "prep",
 		Body: nil,
 	}
-	u.toUser <- data
+	u.send(data)
 }

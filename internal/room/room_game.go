@@ -44,12 +44,12 @@ func (r Room) forwardToUsers() {
 		if d.Username != "" {
 			for _, p := range r.players {
 				if p.username == d.Username {
-					p.toUser <- d
+					p.sendData(d)
 				}
 			}
 		} else {
 			for _, p := range r.players {
-				p.toUser <- d
+				p.sendData(d)
 			}
 		}
 	}

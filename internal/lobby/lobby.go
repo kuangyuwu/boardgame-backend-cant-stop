@@ -53,12 +53,10 @@ func (l *Lobby) Connect(in <-chan []byte, out chan<- []byte, dc <-chan struct{})
 		lobby:    l,
 		room:     nil,
 		username: "",
-		toUser:   make(chan Data),
 		out:      out,
 	}
 	l.users = append(l.users, u)
 
-	go u.sendMessage()
 	go func() {
 		for {
 			select {

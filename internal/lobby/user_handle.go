@@ -34,7 +34,7 @@ func (u *User) handlePrepNew() {
 	}
 
 	u.room = r
-	r.AddPlayer(u.username, u.toUser)
+	r.AddPlayer(u.username, u.send)
 }
 
 func (u *User) handlePrepJoin(body map[string]interface{}) {
@@ -60,7 +60,7 @@ func (u *User) handlePrepJoin(body map[string]interface{}) {
 		return
 	}
 
-	err := r.AddPlayer(u.username, u.toUser)
+	err := r.AddPlayer(u.username, u.send)
 	if err != nil {
 		log.Printf("handlePrepJoin: error adding user to the room: %s", err)
 		u.sendError("error joining the room")

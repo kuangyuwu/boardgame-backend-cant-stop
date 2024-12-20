@@ -12,7 +12,6 @@ type User struct {
 	lobby    *Lobby
 	room     *room.Room
 	username string
-	toUser   chan Data
 	out      chan<- []byte
 }
 
@@ -26,7 +25,6 @@ func (u *User) disconnect() {
 			u.lobby.deleteRoom(u.room)
 		}
 	}
-	close(u.toUser)
 	close(u.out)
 	log.Printf("User %s disconnected", u.username)
 }
@@ -74,13 +72,11 @@ func (u *User) handleMessage(msg []byte) {
 	}
 }
 
-func (u *User) sendMessage() {
-	for data := range u.toUser {
-		msg, err := json.Marshal(data)
-		if err != nil {
-			clog.Errorf("Error marshalling JSON: %v", err)
-			return
-		}
-		u.out <- msg
+func (u *User) send(data any) {
+	msg, err := json.Marshal(data)
+	if err != nil {
+		clog.Errorf("Error marshalling data %v: %v", data, err)
+		return
 	}
+	u.out <- msg
 }
