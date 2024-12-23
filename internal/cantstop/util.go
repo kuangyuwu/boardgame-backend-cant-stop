@@ -14,12 +14,13 @@ func RollDice() [4]uint8 {
 	return result
 }
 
-func GenerateOptions(dice [4]uint8, s State) ([3][2][2]uint8, error) {
+func GenerateOptions(dice [4]uint8, s State) (options [3][2][2]uint8, failed bool, err error) {
 	if !isValidDiceValue(dice) {
-		return [3][2][2]uint8{}, ErrInvalidDiceValue
+		return [3][2][2]uint8{}, false, ErrInvalidDiceValue
 	}
 
-	return generateOptions(dice, s), nil
+	options, failed = generateOptions(dice, s)
+	return options, failed, nil
 }
 
 func isValidDiceValue(dice [4]uint8) bool {
@@ -31,25 +32,30 @@ func isValidDiceValue(dice [4]uint8) bool {
 	return true
 }
 
-func generateOptions(dice [4]uint8, s State) [3][2][2]uint8 {
+func generateOptions(dice [4]uint8, s State) (options [3][2][2]uint8, failed bool) {
 	groupings := groupDice(dice)
-	options := [3][2][2]uint8{}
+	options = [3][2][2]uint8{}
+	failed = true
 	for i, gr := range groupings {
 		a1, a2 := gr[0], gr[1]
 		op := [2][2]uint8{}
 		if s.isValidAdvances([2]uint8{a1, a2}) {
 			op[0] = [2]uint8{a1, a2}
+			failed = false
 		} else if s.isValidAdvances([2]uint8{a1, 0}) {
 			op[0] = [2]uint8{a1, 0}
+			failed = false
 			if s.isValidAdvances([2]uint8{a2, 0}) {
 				op[1] = [2]uint8{a2, 0}
+				failed = false
 			}
 		} else if s.isValidAdvances([2]uint8{a2, 0}) {
 			op[0] = [2]uint8{a2, 0}
+			failed = false
 		}
 		options[i] = op
 	}
-	return options
+	return options, failed
 }
 
 func groupDice(dice [4]uint8) [3][2]uint8 {

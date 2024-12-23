@@ -13,7 +13,7 @@ const (
 
 var (
 	diceType = [...]uint8{6, 6, 6, 6}
-	pathLens = []int8{-1, -1, 3, 5, 7, 9, 11, 13, 11, 9, 7, 5, 3}
+	pathLens = []int8{0, 0, 3, 5, 7, 9, 11, 13, 11, 9, 7, 5, 3}
 	// partitions = [][][]int{{{0, 1}, {2, 3}}, {{0, 2}, {1, 3}}, {{0, 3}, {1, 2}}},
 	// actionGenerator: actionGenerator2Groups,
 )
@@ -26,7 +26,7 @@ var (
 	ErrGameTerminated = errors.New("the game is already terminated")
 
 	ErrInvalidMove          = errors.New("the move is invalid")
-	ErrNotThisPlayersTurn   = errors.New("it's not this player's turn")
+	ErrNotThisPlayersTurn   = errors.New("it is not this player's turn")
 	ErrInvalidDiceValue     = errors.New("the value of dice is invalid")
 	ErrInvalidAdvancesValue = errors.New("the value of advances is invalid")
 	ErrAdvancesNotMatching  = errors.New("the advances don't match the dice")
@@ -76,11 +76,11 @@ func (g *Game) TurnCount() int {
 	return int(g.state.TurnCount)
 }
 
-func (g *Game) Player() int {
+func (g *Game) PlayerNow() int {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return int(g.state.Player)
+	return int(g.state.PlayerNow)
 }
 
 func (g *Game) MoveCount() int {
@@ -100,25 +100,92 @@ func (g *Game) Scores() []int {
 
 	scores := make([]int, g.NumPlayer())
 	for i := range scores {
-		scores[i] = g.score(i + 1)
+		scores[i] = g.state.score(i + 1)
 	}
 	return scores
 }
 
-func (g *Game) score(player int) int {
-	score := 0
-	for i := range g.state.Progress[player] {
-		if g.state.Progress[player][i] == 0 {
-			score++
-		}
-	}
-	return score
-}
-
-func (g *Game) Board() {
+func (g *Game) Board() [][]int {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
+	return g.state.board()
+}
+
+func (g *Game) BoardAfterAdvances(advances [2]uint8) ([][]int, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if !g.state.isValidAdvances(advances) {
+		return [][]int{}, ErrInvalidAdvances
+	}
+	return g.state.boardAfterAdvances(advances), nil
+}
+
+func (g *Game) IsEnded() bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.isEnded
+}
+
+func (g *Game) IsConcluded() bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.isConcluded()
+}
+
+func (g *Game) isConcluded() bool {
+	return g.isEnded && g.winner > 0
+}
+
+func (g *Game) Winner() (int, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if g.IsTerminated() {
+		return 0, ErrGameTerminated
+	}
+	if !g.IsEnded() {
+		return 0, ErrGameOngoing
+	}
+
+	return int(g.winner), nil
+}
+
+func (g *Game) IsTerminated() bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.isTerminated()
+}
+
+func (g *Game) isTerminated() bool {
+	return g.isEnded && g.winner == 0
+}
+
+func (g *Game) Err() error {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.err
+}
+
+func (g *Game) Terminate(reason error) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.isTerminated() {
+		return fmt.Errorf("%w: %w", ErrGameTerminated, g.err)
+	}
+	if g.isConcluded() {
+		return ErrGameConcluded
+	}
+
+	g.isEnded = true
+	g.err = reason
+	return nil
 }
 
 func (g *Game) SubmitMove(m Move) error {
@@ -139,15 +206,15 @@ func (g *Game) SubmitMove(m Move) error {
 
 	g.state.makeMove(m)
 	g.moves = append(g.moves, m)
-	if !m.Continues && g.score(g.Player()) >= goal {
-		g.winner = g.state.Player
+	if !m.Continues && g.state.score(int(g.state.PlayerNow)) >= goal {
+		g.winner = g.state.PlayerNow
 		g.isEnded = true
 	}
 	return nil
 }
 
 func (g *Game) validateMove(m Move) error {
-	if m.Player != g.state.Player {
+	if m.Player != g.state.PlayerNow {
 		return ErrNotThisPlayersTurn
 	}
 	if !isValidDiceValue(m.Dice) {
@@ -160,14 +227,12 @@ func (g *Game) validateMove(m Move) error {
 	}
 	a1, a2 := m.Advances[0], m.Advances[1]
 	if a1 == 0 && a2 == 0 {
-		for i := range 6 {
-			options := generateOptions(m.Dice, g.state)
-			if options[i>>1][i&1] != [2]uint8{0, 0} {
-				return ErrMustAdvance
-			}
-			if m.Continues {
-				return ErrCantContinue
-			}
+		_, failed := generateOptions(m.Dice, g.state)
+		if !failed {
+			return ErrMustAdvance
+		}
+		if m.Continues {
+			return ErrCantContinue
 		}
 		return nil
 	}
@@ -211,71 +276,5 @@ func (g *Game) validateMove(m Move) error {
 	if !g.state.isValidAdvances([2]uint8{a1, a2}) {
 		return ErrInvalidAdvances
 	}
-	return nil
-}
-
-func (g *Game) IsEnded() bool {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	return g.isEnded
-}
-
-func (g *Game) IsConcluded() bool {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	return g.isConcluded()
-}
-
-func (g *Game) isConcluded() bool {
-	return g.isEnded && g.winner > 0
-}
-
-func (g *Game) GetWinner() (uint8, error) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	if g.IsTerminated() {
-		return 0, ErrGameTerminated
-	}
-	if !g.IsEnded() {
-		return 0, ErrGameOngoing
-	}
-
-	return g.winner, nil
-}
-
-func (g *Game) IsTerminated() bool {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	return g.isTerminated()
-}
-
-func (g *Game) isTerminated() bool {
-	return g.isEnded && g.winner == 0
-}
-
-func (g *Game) Err() error {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	return g.err
-}
-
-func (g *Game) Terminate(reason error) error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if g.isTerminated() {
-		return fmt.Errorf("%w: %w", ErrGameTerminated, g.err)
-	}
-	if g.isConcluded() {
-		return ErrGameConcluded
-	}
-
-	g.isEnded = true
-	g.err = reason
 	return nil
 }
