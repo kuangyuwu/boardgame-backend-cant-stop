@@ -1,140 +1,157 @@
 package lobby
 
 import (
-	"log"
 	"slices"
 	"sync"
+
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
+)
+
+const (
+	maxNumMembers = 5
 )
 
 type Room struct {
-	mu           *sync.RWMutex
-	Id           string
-	players      []RoomPlayer
-	toGame       chan Data
-	fromGame     chan Data
-	indexRuleset int
+	mu       *sync.RWMutex
+	Id       string
+	members  []Member
+	toGame   chan Data
+	fromGame chan Data
+	// indexRuleset int
 }
 
-type RoomPlayer struct {
-	username string
+type Member struct {
+	user
 	isReady  bool
 	isInGame bool
-	sendData func(data any)
 }
 
-func newRoom(id string) *Room {
+type user interface {
+	Username() string
+	Send(data any)
+}
+
+func NewRoom(id string) *Room {
 	return &Room{
-		mu:           &sync.RWMutex{},
-		Id:           id,
-		players:      make([]RoomPlayer, 0, MaxNumUsersPerRoom),
-		toGame:       nil,
-		fromGame:     nil,
-		indexRuleset: 0,
+		mu:       &sync.RWMutex{},
+		Id:       id,
+		members:  make([]Member, 0, maxNumMembers),
+		toGame:   nil,
+		fromGame: nil,
+		// indexRuleset: 0,
 	}
 }
 
-func (r *Room) AddPlayer(username string, sendData func(any)) error {
-	if len(r.players) >= MaxNumUsersPerRoom {
+func (r *Room) AddMember(u user) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(r.members) >= maxNumMembers {
 		return ErrTooManyUsersInRoom
 	}
 
-	r.mu.Lock()
-	r.players = append(r.players, RoomPlayer{
-		username: username,
+	r.members = append(r.members, Member{
+		user:     u,
 		isReady:  false,
 		isInGame: false,
-		sendData: sendData,
 	})
-	r.mu.Unlock()
 
-	r.BroadcastPrepUpdate()
+	r.broadcastPrepUpdate()
+
 	return nil
 }
 
-func (r *Room) RemovePlayer(username string) {
+func (r *Room) RemoveMember(username string) {
 	r.mu.Lock()
-	i := r.IndexPlayer(username)
+	defer r.mu.Unlock()
+
+	i := r.indexMember(username)
 	if i == -1 {
-		log.Printf("removePlayer: %s is already not in the room", username)
+		clog.Errorf("%s is already not in the room", username)
 		return
 	}
-	r.players = slices.Delete(r.players, i, i+1)
-	r.mu.Unlock()
+	r.members = slices.Delete(r.members, i, i+1)
 
-	r.BroadcastPrepUpdate()
+	r.broadcastPrepUpdate()
 }
 
-func (r *Room) SetIndexRuleset(i int) {
-	r.mu.Lock()
-	r.indexRuleset = i
-	r.mu.Unlock()
-	r.BroadcastPrepUpdate()
-}
+// func (r *Room) SetIndexRuleset(i int) {
+// 	r.mu.Lock()
+// 	defer r.mu.Unlock()
+
+// 	r.indexRuleset = i
+// 	r.broadcastPrepUpdate()
+// }
 
 func (r *Room) SetReady(username string) {
 	r.mu.Lock()
-	for i, p := range r.players {
-		if p.username == username {
-			r.players[i].isReady = true
-		}
+	defer r.mu.Unlock()
+
+	i := r.indexMember(username)
+	if i == -1 {
+		clog.Errorf("%s is already not in the room", username)
+		return
 	}
-	r.mu.Unlock()
-	r.BroadcastPrepUpdate()
+	r.members[i].isReady = true
+
+	r.broadcastPrepUpdate()
 }
 
 func (r *Room) SetUnready(username string) {
 	r.mu.Lock()
-	for i, p := range r.players {
-		if p.username == username {
-			r.players[i].isReady = false
-		}
+	defer r.mu.Unlock()
+
+	i := r.indexMember(username)
+	if i == -1 {
+		clog.Errorf("%s is already not in the room", username)
+		return
 	}
-	r.mu.Unlock()
-	r.BroadcastPrepUpdate()
+	r.members[i].isReady = false
+
+	r.broadcastPrepUpdate()
 }
 
-func (r Room) BroadcastPrepUpdate() {
+func (r *Room) BroadcastPrepUpdate() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for i, p := range r.players {
-		if p.isInGame {
+	r.broadcastPrepUpdate()
+}
+
+func (r *Room) broadcastPrepUpdate() {
+
+	for i, m := range r.members {
+		if m.isInGame {
 			continue
 		}
 		data := Data{
 			Type: "prepUpdate",
-			Body: map[string]interface{}{
+			Body: map[string]any{
 				"roomId":    r.Id,
 				"isHosting": false,
-				"isReady":   p.isReady,
+				"isReady":   m.isReady,
 				"usernames": r.usernames(),
-				"ruleset":   r.indexRuleset,
+				// "ruleset":   r.indexRuleset,
 			},
 		}
 		if i == 0 {
-			data.Body["isHosting"] = true
-			data.Body["isReady"] = r.IsAllReady()
+			data.Body.(map[string]any)["isHosting"] = true
+			data.Body.(map[string]any)["isReady"] = r.isAllReady()
 		}
-		p.sendData(data)
+		m.Send(data)
 	}
 }
 
 func (r Room) usernames() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	result := make([]string, len(r.players))
-	for i, u := range r.players {
-		result[i] = u.username
+	result := make([]string, len(r.members))
+	for i, m := range r.members {
+		result[i] = m.Username()
 	}
 	return result
 }
 
-func (r Room) IsAllReady() bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for i, p := range r.players {
+func (r Room) isAllReady() bool {
+	for i, p := range r.members {
 		if i != 0 && !p.isReady {
 			return false
 		}
@@ -142,24 +159,28 @@ func (r Room) IsAllReady() bool {
 	return true
 }
 
-func (r Room) IndexPlayer(username string) int {
-	return slices.IndexFunc(r.players, func(p RoomPlayer) bool { return p.username == username })
+func (r Room) indexMember(username string) int {
+	return slices.IndexFunc(r.members, func(m Member) bool { return m.Username() == username })
 }
 
 func (r Room) IsEmpty() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return len(r.players) == 0
+	return len(r.members) == 0
 }
 
 func (r *Room) ExitGame(username string) {
 	r.mu.Lock()
-	for i, p := range r.players {
-		if p.username == username {
-			r.players[i].isInGame = false
-		}
+	defer r.mu.Unlock()
+
+	i := r.indexMember(username)
+	if i == -1 {
+		clog.Errorf("%s is already not in the room", username)
+		return
 	}
+	r.members[i].isInGame = false
+
 	r.mu.Unlock()
 	r.BroadcastPrepUpdate()
 }

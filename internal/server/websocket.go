@@ -26,7 +26,7 @@ func generateHandlerWebsocket(m WebsocketManager) http.HandlerFunc {
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			clog.Errorf("webSocket upgrade request failed: %s\n", err)
+			clog.Warnf("webSocket upgrade request failed: %s\n", err)
 			return
 		}
 		defer conn.Close()

@@ -41,15 +41,15 @@ const defaultFlag = log.Ldate | log.Ltime | log.Lshortfile
 var defaultCLogger = New(os.Stdout, "", defaultFlag)
 
 func (cl *CLogger) output(c ansi.Color, tag string, msg string, calldepth int) {
+	cl.outMu.Lock()
+	defer cl.outMu.Unlock()
+
 	head := ansi.SetFont(ansi.DefaultColor, c, ansi.Bold)(fmt.Sprintf(" %s ", tag))
 	b := &strings.Builder{}
 	cl.l.SetOutput(b)
 	cl.l.Output(calldepth, msg)
 	body := ansi.SetFont(c, ansi.DefaultColor)(b.String())
 	toWrite := fmt.Sprintf("%s %s", head, body)
-
-	cl.outMu.Lock()
-	defer cl.outMu.Unlock()
 	cl.out.Write([]byte(toWrite))
 }
 
