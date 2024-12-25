@@ -4,11 +4,6 @@ import (
 	"errors"
 )
 
-type inData interface {
-	GetDataType() string
-	GetBody() any
-}
-
 var (
 	ErrUnsupportedType = errors.New("received data of unspported type")
 
@@ -20,8 +15,7 @@ var (
 	ErrInvalidDecisionData = errors.New("invalid decision data")
 )
 
-func (gm *GameManager) Handle(playerIdx int, data inData) error {
-	dataType, body := data.GetDataType(), data.GetBody()
+func (gm *GameManager) HandleData(playerIdx int, dataType string, body any) error {
 	switch dataType {
 	case "roll":
 		return gm.handleRoll(playerIdx)
@@ -131,6 +125,7 @@ func (gm *GameManager) handleDecision(playerIdx int, body any) error {
 	if !continues {
 		gm.Send(dataStop())
 		gm.Send(dataScores(gm.game.Scores()))
+		gm.Send(dataRoll())
 		if gm.game.IsConcluded() {
 			w, _ := gm.game.Winner()
 			gm.Send(dataWinner(w))
@@ -139,7 +134,6 @@ func (gm *GameManager) handleDecision(playerIdx int, body any) error {
 		}
 	}
 
-	gm.Send(dataRoll())
 	gm.phase = rolling
 	return nil
 }

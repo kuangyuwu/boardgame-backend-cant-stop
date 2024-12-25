@@ -72,19 +72,20 @@ func (l *Lobby) findUserByUsername(username string) *User {
 }
 
 func (l *Lobby) deleteUser(u *User) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if u == nil {
 		clog.Errorf("received nil User")
 		return
 	}
 
-	l.mu.Lock()
 	i := slices.Index(l.users, u)
 	if i == -1 {
 		clog.Errorf("user does not exist")
 		return
 	}
 	l.users = slices.Delete(l.users, i, i+1)
-	l.mu.Unlock()
 }
 
 func (l *Lobby) CreateRoom() (*Room, error) {

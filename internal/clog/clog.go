@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	ansi "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/ansi"
+	ansi "github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog/ansi"
 )
 
 type CLogger struct {

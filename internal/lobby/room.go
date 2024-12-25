@@ -1,6 +1,7 @@
 package lobby
 
 import (
+	"errors"
 	"slices"
 	"sync"
 
@@ -11,12 +12,17 @@ const (
 	maxNumMembers = 5
 )
 
+var (
+	ErrNotReady       = errors.New("not all members are ready")
+	ErrMemberNotExist = errors.New("the member does not exist")
+	ErrNoOngoingGame  = errors.New("there is no ongoing game")
+)
+
 type Room struct {
-	mu       *sync.RWMutex
-	Id       string
-	members  []Member
-	toGame   chan Data
-	fromGame chan Data
+	mu      *sync.RWMutex
+	Id      string
+	members []Member
+	gm      GameManager
 	// indexRuleset int
 }
 
@@ -24,6 +30,7 @@ type Member struct {
 	user
 	isReady  bool
 	isInGame bool
+	idx      uint8
 }
 
 type user interface {
@@ -31,13 +38,16 @@ type user interface {
 	Send(data any)
 }
 
+type GameManager interface {
+	HandleData(playerIdx int, dataType string, body any) error
+}
+
 func NewRoom(id string) *Room {
 	return &Room{
-		mu:       &sync.RWMutex{},
-		Id:       id,
-		members:  make([]Member, 0, maxNumMembers),
-		toGame:   nil,
-		fromGame: nil,
+		mu:      &sync.RWMutex{},
+		Id:      id,
+		members: make([]Member, 0, maxNumMembers),
+		gm:      nil,
 		// indexRuleset: 0,
 	}
 }
@@ -181,6 +191,5 @@ func (r *Room) ExitGame(username string) {
 	}
 	r.members[i].isInGame = false
 
-	r.mu.Unlock()
-	r.BroadcastPrepUpdate()
+	r.broadcastPrepUpdate()
 }

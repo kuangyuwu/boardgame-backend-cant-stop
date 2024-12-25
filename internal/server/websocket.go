@@ -75,7 +75,7 @@ func writeMessage(conn *websocket.Conn, out <-chan []byte, dc <-chan struct{}) {
 				clog.Errorf("error writing message: %v", err)
 			}
 		case <-dc:
-			clog.Debug("stop writing message")
+			clog.Info("stop writing message")
 			return
 		}
 	}

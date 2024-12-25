@@ -19,9 +19,7 @@ func getInitialState(numPlayer int) State {
 	progress[0] = make([]int8, len(pathLens))
 	for i := 1; i < len(progress); i++ {
 		progress[i] = make([]int8, len(pathLens))
-		for j, L := range pathLens {
-			progress[i][j] = L - 1
-		}
+		copy(progress[i], pathLens)
 	}
 
 	s := State{
@@ -58,7 +56,7 @@ func (s *State) makeMove(m Move) {
 			s.MoveCount++
 		} else {
 			for i := range s.Progress[0] {
-				s.Progress[s.PlayerNow][i] += s.Progress[0][i]
+				s.Progress[s.PlayerNow][i] -= s.Progress[0][i]
 				s.Progress[0][i] = 0
 			}
 			if s.score(int(s.PlayerNow)) >= goal {
@@ -94,13 +92,22 @@ func (s State) hasSpaceLeft(path uint8, numSpace int8) bool {
 	if path == 0 {
 		return true
 	}
-	return s.Progress[s.PlayerNow][path]-s.Progress[0][path] > numSpace
+	return s.Progress[s.PlayerNow][path]-s.Progress[0][path] >= numSpace
 }
 
 func (s State) isValidAdvances(a [2]uint8) bool {
 	a1, a2 := a[0], a[1]
 
 	if s.isOwnedPath(a1) || s.isOwnedPath(a2) {
+		return false
+	}
+	count := 0
+	for i := uint8(2); i <= 12; i++ {
+		if i == a1 || i == a2 || s.Progress[0][i] > 0 {
+			count++
+		}
+	}
+	if count > numNeutral {
 		return false
 	}
 
@@ -123,7 +130,7 @@ func (s State) score(player int) int {
 func (s State) board() [][]int {
 	b := make([][]int, len(pathLens))
 	for i, L := range pathLens {
-		if L == 0 {
+		if L == -1 {
 			b[i] = nil
 			continue
 		}
@@ -139,13 +146,15 @@ func (s State) board() [][]int {
 
 		for p := uint8(1); p <= s.numPlayer(); p++ {
 			j := s.Progress[p][i]
-			b[i][j] |= 1 << (p - 1)
+			if j < pathLens[i] {
+				b[i][j] |= 1 << (p - 1)
+			}
 		}
 
 		if t := s.Progress[0][i]; t > 0 {
 			j := s.Progress[s.PlayerNow][i]
 			for range t {
-				j++
+				j--
 				b[i][j] |= 1 << (s.PlayerNow + 4)
 			}
 		}
@@ -158,5 +167,10 @@ func (s State) boardAfterAdvances(advances [2]uint8) [][]int {
 	if advances[1] != 0 {
 		s.Progress[0][advances[1]]++
 	}
-	return s.board()
+	b := s.board()
+	s.Progress[0][advances[0]]--
+	if advances[1] != 0 {
+		s.Progress[0][advances[1]]--
+	}
+	return b
 }

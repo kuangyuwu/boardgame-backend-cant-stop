@@ -45,6 +45,8 @@ func New(numPlayer int, ds DataSender) (*GameManager, error) {
 		DataSender: ds,
 	}
 
+	gm.Send(dataStart())
+	gm.Send(dataScores(gm.game.Scores()))
 	gm.sendStateUpdate()
 	gm.Send(dataRoll())
 

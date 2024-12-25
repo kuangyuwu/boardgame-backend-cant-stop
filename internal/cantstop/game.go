@@ -13,7 +13,7 @@ const (
 
 var (
 	diceType = [...]uint8{6, 6, 6, 6}
-	pathLens = []int8{0, 0, 3, 5, 7, 9, 11, 13, 11, 9, 7, 5, 3}
+	pathLens = []int8{-1, -1, 3, 5, 7, 9, 11, 13, 11, 9, 7, 5, 3}
 	// partitions = [][][]int{{{0, 1}, {2, 3}}, {{0, 2}, {1, 3}}, {{0, 3}, {1, 2}}},
 	// actionGenerator: actionGenerator2Groups,
 )
@@ -119,7 +119,8 @@ func (g *Game) BoardAfterAdvances(advances [2]uint8) ([][]int, error) {
 	if !g.state.isValidAdvances(advances) {
 		return [][]int{}, ErrInvalidAdvances
 	}
-	return g.state.boardAfterAdvances(advances), nil
+	b := g.state.boardAfterAdvances(advances)
+	return b, nil
 }
 
 func (g *Game) IsEnded() bool {
@@ -260,14 +261,8 @@ func (g *Game) validateMove(m Move) error {
 	}
 	groupings := groupDice(m.Dice)
 	for i, gr := range groupings {
-		if a1 == gr[0] {
-			if a2 != gr[1] {
-				return ErrAdvancesNotMatching
-			}
-		} else if a1 == gr[1] {
-			if a2 != gr[0] {
-				return ErrAdvancesNotMatching
-			}
+		if (a1 == gr[0] && a2 == gr[1]) || (a1 == gr[1] && a2 == gr[0]) {
+			break
 		}
 		if i == 2 {
 			return ErrAdvancesNotMatching

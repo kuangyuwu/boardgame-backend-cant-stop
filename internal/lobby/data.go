@@ -5,14 +5,6 @@ type Data struct {
 	Body any    `json:"body"`
 }
 
-func (d Data) GetDataType() string {
-	return d.Type
-}
-
-func (d Data) GetBody() any {
-	return d.Body
-}
-
 func dataError(errMsg string) Data {
 	return Data{
 		Type: "error",
@@ -38,5 +30,12 @@ func dataPrep() Data {
 	return Data{
 		Type: "prep",
 		Body: nil,
+	}
+}
+
+func dataUsernames(usernames []string) Data {
+	return Data{
+		Type: "usernames",
+		Body: usernames,
 	}
 }

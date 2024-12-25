@@ -37,14 +37,14 @@ func (u *User) Send(data any) {
 	u.out <- msg
 }
 
-func (u User) ListenAndHandleMsg(in <-chan []byte) {
+func (u *User) ListenAndHandleMsg(in <-chan []byte) {
 	for {
 		msg, ok := <-in
 		if !ok {
 			clog.Infof("in channel closed for user %s (username: %s)", u.id, u.username)
 			break
 		}
-		clog.Infof("received message from user %s (username: %s): %s", u.id, u.username, string(msg))
+		clog.Debugf("received message from user %s (username: %s): %s", u.id, u.username, string(msg))
 
 		data := Data{}
 		err := json.Unmarshal(msg, &data)
@@ -70,18 +70,22 @@ func (u User) ListenAndHandleMsg(in <-chan []byte) {
 			u.handleReady()
 		case "unready":
 			u.handleUnready()
-		// case "start":
-		// 	u.handleStart()
+		case "startGame":
+			u.handleStartGame()
 		// case "roll":
 		// 	u.room.ForwardToGame(data)
 		// case "act":
 		// 	u.room.ForwardToGame(data)
 		// case "confirm":
 		// 	u.room.ForwardToGame(data)
-		// case "exit":
-		// 	u.room.ForwardToGame(data)
+		case "exitGame":
+			u.handleExitGame()
 		default:
-			clog.Warn("unsupported type")
+			err := u.room.ForwardToGame(u.username, data.Type, data.Body)
+			if err != nil {
+				clog.Error(err)
+			}
+			// clog.Warn("unsupported type")
 		}
 	}
 	u.disconnect()
@@ -109,6 +113,11 @@ func (u *User) handleUsername(body any) {
 	if !ok {
 		clog.Error("invalid username data")
 		return
+	}
+	if len(username) > maxLenUsername {
+		clog.Warn("invalid username: too long")
+		u.Send(dataWarn("username too long"))
+		u.Send(dataUsername())
 	}
 	if u.lobby.findUserByUsername(username) != nil {
 		clog.Warn("username used")
@@ -211,22 +220,30 @@ func (u *User) handleUnready() {
 	u.room.SetUnready(u.username)
 }
 
-// func (u *User) handleStart() {
-// 	if u.room == nil {
-// 		clog.Errorf("%s is not in any room", u.username)
-// 		u.Send(dataPrep())
-// 		return
-// 	}
-// 	if u.room.IndexPlayer(u.username) != 0 {
-// 		clog.Errorf("%s is not the host", u.username)
-// 		u.room.BroadcastPrepUpdate()
-// 		return
-// 	}
-// 	if !u.room.IsAllReady() {
-// 		clog.Warnf("not everyone is ready")
-// 		u.room.BroadcastPrepUpdate()
-// 		return
-// 	}
+func (u *User) handleStartGame() {
+	if u.room == nil {
+		clog.Errorf("%s is not in any room", u.username)
+		u.Send(dataPrep())
+		return
+	}
+	if u.room.indexMember(u.username) != 0 {
+		clog.Errorf("%s is not the host", u.username)
+		u.room.BroadcastPrepUpdate()
+		return
+	}
 
-// 	// u.room.StartGame()
-// }
+	err := u.room.StartGame()
+	if err != nil {
+		clog.Errorf("error starting game: %v", err)
+		return
+	}
+}
+
+func (u *User) handleExitGame() {
+	if u.room == nil {
+		clog.Errorf("%s is not in any room", u.username)
+		u.Send(dataPrep())
+		return
+	}
+	u.room.ExitGame(u.username)
+}
