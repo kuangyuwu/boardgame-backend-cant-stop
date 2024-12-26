@@ -58,26 +58,22 @@ func (u *User) ListenAndHandleMsg(in <-chan []byte) {
 			u.handleStart()
 		case "username":
 			u.handleUsername(data.Body)
+		case "singlePlayer":
+			u.handleSinglePlayer()
+		case "multiPlayer":
+			u.handleMultiPlayer()
 		case "newRoom":
 			u.handleNewRoom()
 		case "joinRoom":
 			u.handleJoinRoom(data.Body)
 		case "leaveRoom":
 			u.handleLeaveRoom()
-		// case "ruleset":
-		// 	u.handleRuleset(body)
 		case "ready":
 			u.handleReady()
 		case "unready":
 			u.handleUnready()
 		case "startGame":
 			u.handleStartGame()
-		// case "roll":
-		// 	u.room.ForwardToGame(data)
-		// case "act":
-		// 	u.room.ForwardToGame(data)
-		// case "confirm":
-		// 	u.room.ForwardToGame(data)
 		case "exitGame":
 			u.handleExitGame()
 		default:
@@ -104,8 +100,37 @@ func (u *User) disconnect() {
 	clog.Infof("user %s disconnected", u.username)
 }
 
-func (u *User) handleStart() {
+func (u User) handleStart() {
 	u.Send(dataUsername())
+}
+
+func (u *User) handleSinglePlayer() {
+	if u.room != nil {
+		clog.Errorf("%s is already in room %s", u.username, u.room.Id)
+		u.room.BroadcastPrepUpdate()
+		return
+	}
+
+	r, err := u.lobby.CreateRoom()
+	if err != nil {
+		clog.Errorf("error creating new room: %s\n", err)
+		u.Send(dataError("error creating new room"))
+		u.Send(dataPrep())
+		return
+	}
+
+	u.room = r
+	r.AddMember(u)
+	r.SetReady(u.username)
+	err = u.room.StartGame()
+	if err != nil {
+		clog.Errorf("error starting game: %v", err)
+		return
+	}
+}
+
+func (u User) handleMultiPlayer() {
+	u.Send(dataPrep())
 }
 
 func (u *User) handleUsername(body any) {
@@ -126,7 +151,7 @@ func (u *User) handleUsername(body any) {
 		return
 	}
 	u.username = username
-	u.Send(dataPrep())
+	u.Send(dataMode())
 }
 
 func (u *User) handleNewRoom() {
@@ -146,6 +171,8 @@ func (u *User) handleNewRoom() {
 
 	u.room = r
 	r.AddMember(u)
+	r.SetReady(u.username)
+
 }
 
 func (u *User) handleJoinRoom(body any) {
@@ -191,16 +218,6 @@ func (u *User) handleLeaveRoom() {
 	u.room = nil
 	u.Send(dataPrep())
 }
-
-// func (u *User) handleRuleset(body map[string]interface{}) {
-// 	if u.room == nil {
-// 		log.Printf("handlePrepReady: %s is not in any room", u.username)
-// 		u.send(dataPrep())
-// 		return
-// 	}
-// 	i := int(body["ruleset"].(float64))
-// 	u.room.SetIndexRuleset(i)
-// }
 
 func (u *User) handleReady() {
 	if u.room == nil {

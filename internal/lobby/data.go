@@ -26,6 +26,13 @@ func dataUsername() Data {
 	}
 }
 
+func dataMode() Data {
+	return Data{
+		Type: "mode",
+		Body: nil,
+	}
+}
+
 func dataPrep() Data {
 	return Data{
 		Type: "prep",

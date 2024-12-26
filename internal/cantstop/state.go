@@ -46,6 +46,7 @@ func (s *State) makeMove(m Move) {
 			s.PlayerNow = 1
 			s.TurnCount++
 		}
+		s.MoveCount = 0
 	} else {
 		s.Progress[0][m.Advances[0]]++
 		if m.Advances[1] != 0 {
