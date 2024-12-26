@@ -1,53 +1,37 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/kuangyuwu/boardgame-backend-cant-stop/internal/clog"
 )
 
-func InitializeServer(addr *string, l *Lobby) *http.Server {
+func New(addr *string, m WebsocketManager) (*http.Server, <-chan bool) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/healthz", handlerReadiness)
-	mux.HandleFunc("/", l.handlerDefault)
+	mux.HandleFunc("/", handlerHealthz)
+	mux.HandleFunc("/healthz", handlerHealthz)
+	handlerWebsocket := generateHandlerWebsocket(m)
+	mux.HandleFunc("/websocket", handlerWebsocket)
 
-	return &http.Server{
-		Addr:    *addr,
-		Handler: mux,
+	srv := &http.Server{
+		Addr:         *addr,
+		Handler:      mux,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
+	done := make(chan bool)
+	go gracefulShutdown(srv, done)
+
+	return srv, done
 }
 
-func (l *Lobby) handlerDefault(w http.ResponseWriter, r *http.Request) {
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-			ok := origin == "http://cant-stop.kuangyuwu.com" || origin == "https://cant-stop.kuangyuwu.com"
-			return ok
-		},
-	}
-
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("WebSocket upgrade request failed: %s\n", err)
-		return
-	}
-
-	u, err := l.createUser(conn)
-	if err != nil {
-		log.Printf("Error creating user: %s\n", err)
-		conn.Close()
-		return
-	}
-
-	go u.handleMessage()
-	go u.sendMessage()
-	log.Print("a user connected")
-}
-
-func handlerReadiness(w http.ResponseWriter, r *http.Request) {
+func handlerHealthz(w http.ResponseWriter, r *http.Request) {
 	payload := struct {
 		Status string `json:"status"`
 	}{
@@ -59,11 +43,38 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Error marshalling JSON %s", err)
+		clog.Errorf("error marshalling JSON %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	if _, err = w.Write(data); err != nil {
+		clog.Errorf("failed to write response: %v", err)
+	}
+}
+
+func gracefulShutdown(apiServer *http.Server, done chan bool) {
+	// Create context that listens for the interrupt signal from the OS.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Listen for the interrupt signal.
+	<-ctx.Done()
+
+	clog.Info("shutting down gracefully, press Ctrl+C again to force")
+
+	// The context is used to inform the server it has 5 seconds to finish
+	// the request it is currently handling
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := apiServer.Shutdown(ctx); err != nil {
+		clog.Errorf("server forced to shutdown with error: %v", err)
+	}
+
+	clog.Info("server exiting")
+
+	// Notify the main goroutine that the shutdown is complete
+	done <- true
 }
