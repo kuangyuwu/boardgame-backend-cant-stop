@@ -24,7 +24,8 @@ func (l *Lobby) handlerDefault(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
-			return origin == "http://cant-stop.kuangyuwu.com" || origin == "https://cant-stop.kuangyuwu.com"
+			ok := origin == "http://cant-stop.kuangyuwu.com" || origin == "https://cant-stop.kuangyuwu.com"
+			return ok
 		},
 	}
 

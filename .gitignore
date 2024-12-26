@@ -26,7 +26,7 @@ server.csr
 server.key
 
 game_logic
-boardgame-backend-cant-stop
+cantstop
 
 .DS_Store
 .vscode
